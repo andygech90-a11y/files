@@ -1,16 +1,59 @@
 import { useContext, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import { AppContext } from '../context/AppContext';
 
 export default function AdminPanel() {
-  const {  logout, db } = useContext(AppContext);
-  const navigate = useNavigate();
+  const context = useContext(AppContext);
+  
+  if (!context) {
+    return null;
+  }
+
+  const { logout, db, session, approveWithdrawal, rejectWithdrawal, addBalance, showToast } = context;
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState('overview');
+  const [addBalanceUser, setAddBalanceUser] = useState('');
+  const [addBalanceAmount, setAddBalanceAmount] = useState('');
 
 
   const handleLogout = () => {
     logout();
-    navigate('/');
+    router.push('/');
+  };
+
+  const handleAddBalance = () => {
+    if (!addBalanceUser || !addBalanceAmount) {
+      showToast('Please fill in all fields', 'error');
+      return;
+    }
+    const amount = parseFloat(addBalanceAmount);
+    if (isNaN(amount) || amount <= 0) {
+      showToast('Invalid amount', 'error');
+      return;
+    }
+    if (addBalance(addBalanceUser, amount, 'Admin credit')) {
+      showToast(`✅ Added ${amount} BTC to ${addBalanceUser}`, 'success');
+      setAddBalanceUser('');
+      setAddBalanceAmount('');
+    } else {
+      showToast('Failed to add balance', 'error');
+    }
+  };
+
+  const handleApproveWithdrawal = (withdrawalId) => {
+    if (approveWithdrawal(withdrawalId)) {
+      showToast('✅ Withdrawal approved and deducted from user', 'success');
+    } else {
+      showToast('Failed to approve withdrawal', 'error');
+    }
+  };
+
+  const handleRejectWithdrawal = (withdrawalId) => {
+    if (rejectWithdrawal(withdrawalId)) {
+      showToast('❌ Withdrawal rejected', 'success');
+    } else {
+      showToast('Failed to reject withdrawal', 'error');
+    }
   };
 
   if (!session?.isAdmin || !db) return null;
@@ -49,6 +92,7 @@ export default function AdminPanel() {
           {[
             { id: 'overview', icon: '📊', label: 'Overview' },
             { id: 'users', icon: '👥', label: 'Users' },
+            { id: 'withdrawals', icon: '🔄', label: 'Withdrawals' },
             { id: 'transactions', icon: '💳', label: 'Transactions' },
             { id: 'referrals', icon: '🔗', label: 'Referrals' },
           ].map(item => (
@@ -99,6 +143,7 @@ export default function AdminPanel() {
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '2rem', fontWeight: 600, marginBottom: '8px' }}>
             {activeTab === 'overview' && 'Dashboard Overview'}
             {activeTab === 'users' && 'Users Management'}
+            {activeTab === 'withdrawals' && 'Withdrawal Requests'}
             {activeTab === 'transactions' && 'Transactions Log'}
             {activeTab === 'referrals' && 'Referral Codes'}
           </h2>
@@ -189,6 +234,112 @@ export default function AdminPanel() {
                   <button onClick={() => navigator.clipboard.writeText(code)} style={{ padding: '6px 12px', borderRadius: '6px', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', cursor: 'pointer', fontSize: '0.75rem' }}>Copy</button>
                 </div>
               ))}
+            </div>
+          )}
+
+          {activeTab === 'withdrawals' && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '24px' }}>
+              {/* Withdrawal Requests */}
+              <div style={{ borderRadius: '16px', overflow: 'hidden', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '1.3rem', fontWeight: 600 }}>Pending Requests ({(db.withdrawals || []).filter(w => w.status === 'pending').length})</h3>
+                </div>
+                <div style={{ overflowX: 'auto', maxHeight: '600px', overflowY: 'auto' }}>
+                  {(db.withdrawals || []).filter(w => w.status === 'pending').length === 0 ? (
+                    <div style={{ padding: '40px 24px', textAlign: 'center', color: 'rgba(255,255,255,0.4)' }}>
+                      No pending withdrawal requests
+                    </div>
+                  ) : (
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'rgba(255,255,255,0.4)', borderBottom: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)' }}>User</th>
+                          <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'rgba(255,255,255,0.4)', borderBottom: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)' }}>Amount</th>
+                          <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'rgba(255,255,255,0.4)', borderBottom: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)' }}>Date</th>
+                          <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'rgba(255,255,255,0.4)', borderBottom: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(db.withdrawals || []).filter(w => w.status === 'pending').map(w => (
+                          <tr key={w.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                            <td style={{ padding: '14px 16px', fontSize: '0.85rem' }}>{w.username}</td>
+                            <td style={{ padding: '14px 16px', fontSize: '0.85rem', color: '#00e5b0' }}>{w.amount.toFixed(5)} ₿</td>
+                            <td style={{ padding: '14px 16px', fontSize: '0.85rem' }}>{w.requestedAt}</td>
+                            <td style={{ padding: '14px 16px', fontSize: '0.75rem', display: 'flex', gap: '6px' }}>
+                              <button onClick={() => handleApproveWithdrawal(w.id)} style={{ padding: '4px 8px', borderRadius: '4px', background: '#00e5b0', border: 'none', color: '#000', cursor: 'pointer', fontWeight: 600 }}>✓ Approve</button>
+                              <button onClick={() => handleRejectWithdrawal(w.id)} style={{ padding: '4px 8px', borderRadius: '4px', background: '#ff4757', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>✕ Reject</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+
+              {/* Add Balance Form */}
+              <div style={{ borderRadius: '16px', overflow: 'hidden', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '1.2rem', fontWeight: 600 }}>Add Balance</h3>
+                </div>
+                <div style={{ padding: '24px' }}>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'rgba(255,255,255,0.6)' }}>Username</label>
+                    <input
+                      type="text"
+                      value={addBalanceUser}
+                      onChange={(e) => setAddBalanceUser(e.target.value)}
+                      placeholder="Enter username"
+                      style={{
+                        width: '100%',
+                        marginTop: '6px',
+                        padding: '8px 12px',
+                        borderRadius: '6px',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        background: 'rgba(255,255,255,0.05)',
+                        color: '#fff',
+                        fontSize: '0.85rem',
+                      }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '20px' }}>
+                    <label style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'rgba(255,255,255,0.6)' }}>Amount (BTC)</label>
+                    <input
+                      type="number"
+                      value={addBalanceAmount}
+                      onChange={(e) => setAddBalanceAmount(e.target.value)}
+                      placeholder="0.001"
+                      step="0.001"
+                      style={{
+                        width: '100%',
+                        marginTop: '6px',
+                        padding: '8px 12px',
+                        borderRadius: '6px',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        background: 'rgba(255,255,255,0.05)',
+                        color: '#fff',
+                        fontSize: '0.85rem',
+                      }}
+                    />
+                  </div>
+                  <button
+                    onClick={handleAddBalance}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      borderRadius: '6px',
+                      background: 'linear-gradient(135deg, #f5b041, #e8a020)',
+                      border: 'none',
+                      color: '#000',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      fontSize: '0.85rem',
+                    }}
+                  >
+                    💰 Add Balance
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>

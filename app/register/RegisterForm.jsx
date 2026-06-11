@@ -3,7 +3,7 @@
 import { useContext, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { AppContext } from '../context/AppContext';
+import { AppContext } from '@/src/context/AppContext';
 
 export default function RegisterForm() {
   const context = useContext(AppContext);
@@ -47,13 +47,16 @@ export default function RegisterForm() {
       return;
     }
 
-    if (context.register(uname, pass, refcode.toUpperCase())) {
-      context.showToast(`Welcome! Your account is ready 🎉`, 'success');
-      setTimeout(() => router.push('/'), 700);
-    } else {
-      setError('Registration failed. Username may be taken or invalid referral code.');
-      setShowError(true);
-    }
+    (async () => {
+      const res = await context.register(uname, pass, refcode.toUpperCase());
+      if (res?.success) {
+        context.showToast(`Welcome! Your account is ready 🎉`, 'success');
+        router.push('/login');
+      } else {
+        setError(res?.message || 'Registration failed. Username may be taken or invalid referral code.');
+        setShowError(true);
+      }
+    })();
   };
 
   return (

@@ -1,17 +1,42 @@
 import { useContext, useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { AppContext } from '../context/AppContext';
 import Nav from '../components/Nav';
 
 export default function AdminLogin() {
-  const {  showToast } = useContext(AppContext);
-  const navigate = useNavigate();
+  const context = useContext(AppContext);
+  
+  if (!context) {
+    return null;
+  }
+
+  const { showToast, adminLogin } = context;
+  const router = useRouter();
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [showError, setShowError] = useState(false);
 
 
 
+
+  const handleLogin = () => {
+    setShowError(false);
+    setError('');
+    if (!password) {
+      setError('Please enter the admin password');
+      setShowError(true);
+      return;
+    }
+    const ok = adminLogin(password);
+    if (ok) {
+      showToast('Admin logged in', 'success');
+      router.push('/admin');
+    } else {
+      setError('Incorrect admin password');
+      setShowError(true);
+    }
+  };
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') handleLogin();

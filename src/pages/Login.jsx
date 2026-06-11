@@ -1,30 +1,39 @@
 import { useContext, useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { AppContext } from '../context/AppContext';
 import Nav from '../components/Nav';
+import BottomTabs from '../components/BottomTabs';
 
 export default function Login() {
-  const { session, login, showToast } = useContext(AppContext);
-  const navigate = useNavigate();
+  const context = useContext(AppContext);
+  
+  if (!context) {
+    return null;
+  }
+
+  const { session, login, showToast } = context;
+  const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [showError, setShowError] = useState(false);
 
   useEffect(() => {
-    if (session) navigate('/');
-  }, [session, navigate]);
+    if (session) router.push('/');
+  }, [session, router]);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!username || !password) {
       setError('Please fill in all fields.');
       setShowError(true);
       return;
     }
 
-    if (login(username, password)) {
+    const success = await login(username, password);
+    if (success) {
       showToast(`Welcome back! 💗`, 'success');
-      setTimeout(() => navigate('/'), 700);
+      setTimeout(() => router.push('/'), 700);
     } else {
       setError('Invalid username or password.');
       setShowError(true);
@@ -115,5 +124,15 @@ export default function Login() {
         </div>
       </div>
     </div>
+  );
+}
+
+// show bottom tabs on the login page
+export function LoginWithTabs(props) {
+  return (
+    <>
+      <Login {...props} />
+      <BottomTabs />
+    </>
   );
 }

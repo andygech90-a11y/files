@@ -3,14 +3,15 @@
 import { useContext } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { AppContext } from '../context/AppContext';
+import { AppContext } from '@/src/context/AppContext';
 
 export default function Nav() {
-  const { session, logout, db } = useContext(AppContext);
+  const { session, logout, db, showToast } = useContext(AppContext);
   const router = useRouter();
 
   const handleLogout = () => {
     logout();
+    if (showToast) showToast('Logged out', 'info');
     router.push('/');
   };
 
@@ -26,7 +27,7 @@ export default function Nav() {
           <>
             <span style={navStyles.balancePill}>₿ {balance}</span>
             <Link href="/events" style={navStyles.navBtn}>Events</Link>
-            <Link href="/profile" style={navStyles.navBtn}>Profile</Link>
+            <Link href="/me" style={navStyles.navBtn}>Profile</Link>
             <button onClick={handleLogout} style={{ ...navStyles.navBtn, background: 'none', border: 'none', cursor: 'pointer' }}>Logout</button>
           </>
         ) : (

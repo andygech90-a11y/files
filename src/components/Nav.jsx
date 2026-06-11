@@ -1,14 +1,15 @@
 import { useContext } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { AppContext } from '../context/AppContext';
 
 export default function Nav() {
   const { session, logout, db } = useContext(AppContext);
-  const navigate = useNavigate();
+  const router = useRouter();
 
   const handleLogout = () => {
     logout();
-    navigate('/');
+    router.push('/');
   };
 
   const balance = session && db?.users[session.username]
@@ -17,19 +18,19 @@ export default function Nav() {
 
   return (
     <nav style={navStyles.container}>
-      <Link to="/" style={navStyles.logo}>💗 Sincere Love Club</Link>
+      <Link href="/" style={navStyles.logo}>💗 Sincere Love Club</Link>
       <div style={navStyles.links}>
         {session ? (
           <>
             <span style={navStyles.balancePill}>₿ {balance}</span>
-            <Link to="/events" style={navStyles.navBtn}>Events</Link>
-            <Link to="/profile" style={navStyles.navBtn}>Profile</Link>
+            <Link href="/events" style={navStyles.navBtn}>Events</Link>
+            <Link href="/me" style={navStyles.navBtn}>Profile</Link>
             <button onClick={handleLogout} style={{ ...navStyles.navBtn, background: 'none', border: 'none', cursor: 'pointer' }}>Logout</button>
           </>
         ) : (
           <>
-            <Link to="/" style={navStyles.navBtn}>← Home</Link>
-            <Link to="/register" style={{ ...navStyles.navBtn, ...navStyles.primary }}>Join Free</Link>
+            <Link href="/" style={navStyles.navBtn}>← Home</Link>
+            <Link href="/register" style={{ ...navStyles.navBtn, ...navStyles.primary }}>Join Free</Link>
           </>
         )}
       </div>

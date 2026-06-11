@@ -3,7 +3,7 @@
 import { useContext, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { AppContext } from '../context/AppContext';
+import { AppContext } from '@/src/context/AppContext';
 
 export default function AdminLoginForm() {
   const [context, setContext] = useState(null);
@@ -34,7 +34,7 @@ export default function AdminLoginForm() {
 
     if (context.adminLogin(password)) {
       context.showToast('Admin login successful!', 'success');
-      setTimeout(() => router.push('/admin'), 700);
+      router.push('/admin');
     } else {
       setError('Invalid admin password.');
       setShowError(true);

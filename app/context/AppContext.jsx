@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useState, useEffect } from 'react';
+import { createContext, useState, useEffect, useCallback } from 'react';
 import model1 from '@/src/assets/photo/model1.png';
 import model2 from '@/src/assets/photo/model2.png';
 import model3 from '@/src/assets/photo/model3.png';
@@ -13,19 +13,21 @@ import model9 from '@/src/assets/photo/model9.png';
 
 export const AppContext = createContext();
 
+const SESSION_STORAGE_KEY = 'sincere-love-session';
+
 const WOMEN = [
-  { name:'Sophia Laurent',   age:26, tag:'VIP',    img:model1 },
-  { name:'Isabella Rossi',   age:24, tag:'Online', img:model2 },
-  { name:'Amara Diallo',     age:28, tag:'New',    img:model3 },
-  { name:'Mei Lin Chen',     age:23, tag:'Online', img:model4 },
-  { name:'Valentina Cruz',   age:27, tag:'VIP',    img:model5 },
-  { name:'Layla Hassan',     age:25, tag:'New',    img:model6 },
-  { name:'Natasha Ivanova',  age:29, tag:'Online', img:model7 },
-  { name:'Priya Sharma',     age:26, tag:'New',    img:model8 },
-  { name:'Elena Vasquez',    age:22, tag:'Online', img:model9 },
-  { name:'Aiko Tanaka',      age:25, tag:'VIP',    img:model1 },
-  { name:'Zara Ahmed',       age:28, tag:'New',    img:model2 },
-  { name:'Grace Okonkwo',    age:24, tag:'VIP',    img:model3 },
+  { name:'Sophia Laurent',   age:26, tag:'VIP',    img:model1, location: 'Alabama' },
+  { name:'Isabella Rossi',   age:24, tag:'Online', img:model2, location: 'Alaska' },
+  { name:'Amara Diallo',     age:28, tag:'New',    img:model3, location: 'Arizona' },
+  { name:'Mei Lin Chen',     age:23, tag:'Online', img:model4, location: 'Arkansas' },
+  { name:'Valentina Cruz',   age:27, tag:'VIP',    img:model5, location: 'California' },
+  { name:'Layla Hassan',     age:25, tag:'New',    img:model6, location: 'Colorado' },
+  { name:'Natasha Ivanova',  age:29, tag:'Online', img:model7, location: 'Connecticut' },
+  { name:'Priya Sharma',     age:26, tag:'New',    img:model8, location: 'Delaware' },
+  { name:'Elena Vasquez',    age:22, tag:'Online', img:model9, location: 'Florida' },
+  { name:'Aiko Tanaka',      age:25, tag:'VIP',    img:model1, location: 'Georgia' },
+  { name:'Zara Ahmed',       age:28, tag:'New',    img:model2, location: 'Hawaii' },
+  { name:'Grace Okonkwo',    age:24, tag:'VIP',    img:model3, location: 'Idaho' },
 ];
 
 const TESTIMONIALS = [
@@ -44,59 +46,129 @@ const GIFT_PLANS = [
   { id:'diamond',icon:'💎', name:'Diamond VIP',   min:0.05,   minLabel:'0.050 BTC', returnPct:'200%', color:'#b04eff', desc:'Maximum gains' },
 ];
 
+const defaultDb = {
+  users: {},
+  transactions: [],
+  withdrawals: [],
+  notifications: {},
+  referrals: ['LOVE2024','HEART2024','MATCH100','VIP2024','CONNECT1'],
+  adminBTC: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
+  giftAssign: {},
+};
+
+const normalizeDb = (raw) => ({
+  users: raw?.users || {},
+  transactions: raw?.transactions || [],
+  withdrawals: raw?.withdrawals || [],
+  notifications: raw?.notifications || {},
+  referrals: raw?.referrals || defaultDb.referrals,
+  adminBTC: raw?.adminBTC || defaultDb.adminBTC,
+  giftAssign: raw?.giftAssign || {},
+});
+
 export function AppProvider({ children }) {
   const [session, setSession] = useState(null);
   const [db, setDb] = useState(null);
   const [toast, setToast] = useState({ message: '', type: 'info', visible: false });
-
-  // Initialize DB from localStorage on mount
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    const stored = localStorage.getItem('lcDB');
-    const parsed = stored ? JSON.parse(stored) : {};
-    
-    if (!parsed.users) parsed.users = {};
-    if (!parsed.transactions) parsed.transactions = [];
-    if (!parsed.referrals) parsed.referrals = ['LOVE2024','HEART2024','MATCH100','VIP2024','CONNECT1'];
-    if (!parsed.adminBTC) parsed.adminBTC = 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh';
-    if (!parsed.giftAssign) parsed.giftAssign = {};
-    
-    localStorage.setItem('lcDB', JSON.stringify(parsed));
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setDb(parsed);
-
-    // Restore session
-    const storedSession = sessionStorage.getItem('lcSession');
-    if (storedSession) setSession(JSON.parse(storedSession));
-  }, []);
-
-  const saveDB = (newDb) => {
-    setDb(newDb);
-    localStorage.setItem('lcDB', JSON.stringify(newDb));
+  const [userBalance, setUserBalance] = useState(0);
+  
+  // showToast is used by the initial load effect; declare it early so effects can call it
+  const showToast = (message, type = 'info') => {
+    setToast({ message, type, visible: true });
+    setTimeout(() => setToast(p => ({ ...p, visible: false })), 3400);
   };
 
-  const login = (username, password) => {
+  useEffect(() => {
+    let mounted = true;
+    const loadDb = async () => {
+      try {
+        const response = await fetch('/api/state');
+        if (!response.ok) {
+          const text = await response.text().catch(() => null);
+          let message = 'Failed to fetch db state';
+          if (text) {
+            try {
+              const parsed = JSON.parse(text);
+              message = parsed.error || parsed.message || text;
+            } catch {
+              message = text;
+            }
+          }
+          console.error('loadDb non-ok response:', response.status, message);
+          showToast?.(message, 'error');
+          if (mounted) setDb(defaultDb);
+          return;
+        }
+        const remoteDb = await response.json();
+        if (mounted) setDb(normalizeDb(remoteDb));
+      } catch (error) {
+        console.error('loadDb error:', error);
+        showToast?.(error?.message || 'Failed to load app state', 'error');
+        if (mounted) setDb(defaultDb);
+      }
+    };
+    loadDb();
+    return () => { mounted = false; };
+  }, [showToast, normalizeDb, defaultDb]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const storedSession = window.localStorage.getItem(SESSION_STORAGE_KEY);
+      if (storedSession) {
+        setSession(JSON.parse(storedSession));
+      }
+    } catch (error) {
+      console.error('Failed to restore session from localStorage:', error);
+    }
+  }, []);
+
+  const saveSession = (user) => {
+    setSession(user);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(user));
+    }
+  };
+
+  const clearSession = () => {
+    setSession(null);
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(SESSION_STORAGE_KEY);
+    }
+  };
+
+  const saveDB = async (newDb) => {
+    setDb(newDb);
+    try {
+      await fetch('/api/state', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newDb),
+      });
+    } catch (error) {
+      console.error('saveDB error:', error);
+    }
+  };
+
+  const login = useCallback((username, password) => {
     if (!db || !db.users[username] || db.users[username].password !== password) {
       return false;
     }
     const user = { username, isAdmin: false };
-    setSession(user);
-    sessionStorage.setItem('lcSession', JSON.stringify(user));
+    saveSession(user);
     return true;
-  };
+  }, [db]);
 
-  const adminLogin = (password) => {
+  const adminLogin = useCallback((password) => {
     if (password !== 'admin123') return false;
     const user = { username: 'admin', isAdmin: true };
-    setSession(user);
-    sessionStorage.setItem('lcSession', JSON.stringify(user));
+    saveSession(user);
     return true;
-  };
+  }, []);
 
-  const logout = () => {
-    setSession(null);
-    sessionStorage.removeItem('lcSession');
-  };
+  const logout = useCallback(() => {
+    clearSession();
+  }, []);
 
   const register = (username, password, referralCode) => {
     if (!db) return false;
@@ -119,9 +191,130 @@ export function AppProvider({ children }) {
     return true;
   };
 
-  const showToast = (message, type = 'info') => {
-    setToast({ message, type, visible: true });
-    setTimeout(() => setToast(p => ({ ...p, visible: false })), 3400);
+  // Fetch user balance from backend
+  const fetchUserBalance = async (username) => {
+    try {
+      const response = await fetch(`/api/users/balance?username=${username}`);
+      if (!response.ok) throw new Error('Failed to fetch balance');
+      const data = await response.json();
+      setUserBalance(data.balance || 0);
+      return data.balance || 0;
+    } catch (error) {
+      console.error('Balance fetch error:', error);
+      showToast('Failed to fetch balance', 'error');
+      return 0;
+    }
+  };
+
+  // Request withdrawal
+  const requestWithdrawal = async (username, amount, withdrawType, address) => {
+    try {
+      const response = await fetch('/api/withdrawals/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, amount, withdrawType, address }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Withdrawal request failed');
+      }
+
+      const data = await response.json();
+      showToast('✅ Withdrawal request submitted successfully!', 'success');
+      return data;
+    } catch (error) {
+      console.error('Withdrawal error:', error);
+      showToast(error.message || 'Withdrawal request failed', 'error');
+      return null;
+    }
+  };
+
+  // Add points to user (admin only)
+  const addUserPoints = async (adminPassword, username, points, reason) => {
+    try {
+      const response = await fetch('/api/users/add-points', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminPassword, username, points, reason }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to add points');
+      }
+
+      const data = await response.json();
+      showToast(data.message, 'success');
+      return data;
+    } catch (error) {
+      console.error('Add points error:', error);
+      showToast(error.message || 'Failed to add points', 'error');
+      return null;
+    }
+  };
+
+  // Get withdrawal requests
+  const getWithdrawals = async (status = null) => {
+    try {
+      const url = status ? `/api/withdrawals/request?status=${status}` : '/api/withdrawals/request';
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Failed to fetch withdrawals');
+      const data = await response.json();
+      return data.requests || [];
+    } catch (error) {
+      console.error('Fetch withdrawals error:', error);
+      showToast('Failed to fetch withdrawal requests', 'error');
+      return [];
+    }
+  };
+
+  // Approve withdrawal (UI passes requestId)
+  const approveWithdrawal = async (requestId, txHash = null) => {
+    try {
+      const response = await fetch('/api/withdrawals/approve', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminPassword: 'admin123', requestId, txHash }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || 'Failed to approve withdrawal');
+      }
+
+      const data = await response.json();
+      showToast(data.message, 'success');
+      return data;
+    } catch (error) {
+      console.error('Approve withdrawal error:', error);
+      showToast(error.message || 'Failed to approve withdrawal', 'error');
+      return null;
+    }
+  };
+
+  // Reject withdrawal (UI passes requestId)
+  const rejectWithdrawal = async (requestId, reason = null) => {
+    try {
+      const response = await fetch('/api/withdrawals/reject', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminPassword: 'admin123', requestId, reason }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || 'Failed to reject withdrawal');
+      }
+
+      const data = await response.json();
+      showToast(data.message, 'success');
+      return data;
+    } catch (error) {
+      console.error('Reject withdrawal error:', error);
+      showToast(error.message || 'Failed to reject withdrawal', 'error');
+      return null;
+    }
   };
 
   return (
@@ -135,6 +328,13 @@ export function AppProvider({ children }) {
       logout,
       register,
       saveDB,
+      fetchUserBalance,
+      requestWithdrawal,
+      addUserPoints,
+      getWithdrawals,
+      approveWithdrawal,
+      rejectWithdrawal,
+      userBalance,
       WOMEN,
       TESTIMONIALS,
       GIFT_PLANS,

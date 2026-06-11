@@ -1,11 +1,19 @@
 import { useContext, useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { AppContext } from '../context/AppContext';
 import Nav from '../components/Nav';
+import BottomTabs from '../components/BottomTabs';
 
 export default function Register() {
+  const context = useContext(AppContext);
+  
+  if (!context) {
+    return null;
+  }
 
-  const navigate = useNavigate();
+  const { register, showToast } = context;
+  const router = useRouter();
   const [formData, setFormData] = useState({
     uname: '', pass: '', refcode: ''
   });
@@ -19,7 +27,7 @@ export default function Register() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     const { uname, pass, refcode } = formData;
 
     if (!uname || !pass || !refcode) {
@@ -40,6 +48,16 @@ export default function Register() {
       return;
     }
 
+    const normalizedUsername = uname.toLowerCase();
+    const success = await register(normalizedUsername, pass, refcode.toUpperCase());
+
+    if (success) {
+      showToast('✅ Account created successfully! Please log in.', 'success');
+      router.push('/login');
+    } else {
+      setError('Registration failed. Check your username or referral code.');
+      setShowError(true);
+    }
   };
 
   return (
@@ -110,5 +128,15 @@ export default function Register() {
         </div>
       </div>
     </div>
+  );
+}
+
+// show bottom tabs on the register page
+export function RegisterWithTabs(props) {
+  return (
+    <>
+      <Register {...props} />
+      <BottomTabs />
+    </>
   );
 }

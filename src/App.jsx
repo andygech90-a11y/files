@@ -1,8 +1,8 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider } from './context/AppContext';
 import Home from './pages/Home';
-import Login from './pages/Login';
-import Register from './pages/Register';
+import Login, { LoginWithTabs } from './pages/Login';
+import Register, { RegisterWithTabs } from './pages/Register';
 import AdminLogin from './pages/AdminLogin';
 import AdminPanel from './pages/AdminPanel';
 import Toast from './components/Toast';
@@ -13,12 +13,7 @@ function App() {
   const [showRulesModal, setShowRulesModal] = useState(false);
 
   useEffect(() => {
-    // Check if user has seen the rules modal before
-    const hasSeenRules = localStorage.getItem('hasSeenRulesModal');
-    if (!hasSeenRules) {
-      setShowRulesModal(true);
-      localStorage.setItem('hasSeenRulesModal', 'true');
-    }
+    setShowRulesModal(true);
   }, []);
 
   useEffect(() => {
@@ -130,8 +125,8 @@ function App() {
             <Toast />
             <Routes>
               <Route path="/" element={<Home />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
+              <Route path="/login" element={<LoginWithTabs />} />
+              <Route path="/register" element={<RegisterWithTabs />} />
               <Route path="/admin-login" element={<AdminLogin />} />
               <Route path="/admin" element={<AdminPanel />} />
               <Route path="*" element={<Navigate to="/" />} />

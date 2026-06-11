@@ -5,7 +5,13 @@ import dynamicImport from 'next/dynamic';
 export const dynamic = 'force-dynamic';
 
 const RegisterForm = dynamicImport(() => import('./RegisterForm'), { ssr: false });
+import BottomTabs from '../components/BottomTabs';
 
 export default function RegisterPage() {
-  return <RegisterForm />;
+  return (
+    <>
+      <RegisterForm />
+      <BottomTabs />
+    </>
+  );
 }
